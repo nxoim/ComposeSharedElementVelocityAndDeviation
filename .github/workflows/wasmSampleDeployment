@@ -1,0 +1,39 @@
+name: Deploy WasmJS Sample
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write   
+      id-token: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: Set up JDK
+        uses: actions/setup-java@v3
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/gradle-build-action@v2
+
+      - name: Build WasmJS distribution
+        run: ./gradlew :sample:composeApp:wasmJsBrowserDistribution
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v2
+        with:
+          path: sample/composeApp/build/distributions
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v2
