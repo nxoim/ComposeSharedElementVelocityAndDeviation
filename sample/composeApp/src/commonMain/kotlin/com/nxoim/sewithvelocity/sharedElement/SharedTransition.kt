@@ -59,7 +59,9 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.constrain
 import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.util.fastForEach
+import com.nxoim.sewithvelocity.sharedElement.SharedTransitionScope.PlaceHolderSize.Companion.animatedSize
 import com.nxoim.sewithvelocity.sharedElement.SharedTransitionScope.PlaceHolderSize.Companion.contentSize
+import com.nxoim.sewithvelocity.sharedElement.SharedTransitionScope.ResizeMode.Companion.RemeasureToBounds
 import com.nxoim.sewithvelocity.sharedElement.SharedTransitionScope.ResizeMode.Companion.ScaleToBounds
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -176,8 +178,7 @@ internal class SharedTransitionScopeImpl internal constructor(
         renderInOverlayDuringTransition: Boolean,
         zIndexInOverlay: Float,
         clipInOverlayDuringTransition: SharedTransitionScope.OverlayClip,
-        initialVelocityProvider: (() -> Rect)?,
-        acceptIncomingInitialVelocity: Boolean
+        initialVelocityMultiplierOverrider: (() -> Float)?
     ) = this.sharedElementImpl<Unit>(
         sharedContentState = sharedContentState,
         visible = { visible },
@@ -187,8 +188,7 @@ internal class SharedTransitionScopeImpl internal constructor(
         renderInOverlayDuringTransition = renderInOverlayDuringTransition,
         zIndexInOverlay = zIndexInOverlay,
         clipInOverlayDuringTransition = clipInOverlayDuringTransition,
-        initialVelocityProvider = initialVelocityProvider,
-        acceptIncomingInitialVelocity = acceptIncomingInitialVelocity
+        initialVelocityMultiplierOverrider = initialVelocityMultiplierOverrider
     )
 
     override fun OverlayClip(clipShape: Shape): SharedTransitionScope.OverlayClip = ShapeBasedClip(clipShape)
@@ -228,17 +228,11 @@ internal class SharedTransitionScopeImpl internal constructor(
         renderInOverlayDuringTransition: Boolean,
         zIndexInOverlay: Float,
         clipInOverlayDuringTransition: SharedTransitionScope.OverlayClip,
-        initialVelocityProvider: (() -> Rect)?,
-        acceptIncomingInitialVelocity: Boolean
+        initialVelocityMultiplierOverrider: (() -> Float)?
     ) = composed {
         val key = sharedContentState.key
         val sharedElement = remember { sharedElementsFor(key) }
-            .apply {
-                // TODO this is nor reliable as there could be more than
-                //  2 shared element hosts and the newest recomposed one
-                //  will cause this value to be set. may have to move to SharedElementState
-                initialVelocityProvider?.let { lastReportedInitialVelocity = it }
-            }
+            .apply { initialVelocityMultiplierOverrider?.invoke()?.let { setInitialVelocityMultiplier(it) } }
 
         // otherwise some updates wouldnt pass, idk why tbh
         val visibleRemembered by rememberUpdatedState(visible as (Unit) -> Boolean)
@@ -248,10 +242,7 @@ internal class SharedTransitionScopeImpl internal constructor(
                 transitionScope = this@SharedTransitionScopeImpl,
                 coroutineScope = coroutineScope,
                 initialVelocity = {
-                    if (acceptIncomingInitialVelocity)
-                        sharedElement.lastReportedInitialVelocity?.invoke()
-                    else
-                        null
+                    sharedElement.getVelocity()
                 },
                 boundsTransform = boundsTransform,
                 _target = { visibleRemembered.invoke(Unit) }
@@ -358,6 +349,10 @@ internal class SharedTransitionScopeImpl internal constructor(
                     }
                 }
             }
+
+            if (states.isEmpty()) {
+                stopVelocityTracking()
+            }
         }
     }
 
@@ -376,6 +371,9 @@ internal class SharedTransitionScopeImpl internal constructor(
                 renderers.add(sharedElementState)
             } else {
                 renderers.add(id + 1, sharedElementState)
+            }
+            if (states.size == 1) {
+                beginVelocityTracking(coroutineScope)
             }
         }
     }
@@ -807,8 +805,7 @@ public interface SharedTransitionScope : LookaheadScope {
         renderInOverlayDuringTransition: Boolean = true,
         zIndexInOverlay: Float = 0f,
         clipInOverlayDuringTransition: OverlayClip = ParentClip,
-        initialVelocityProvider: (() -> Rect)? = null,
-        acceptIncomingInitialVelocity: Boolean = true
+        initialVelocityMultiplierOverrider: (() -> Float)? = null
     ): Modifier
 
     /** Creates an [OverlayClip] based on a specific [clipShape]. */

@@ -4,16 +4,28 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.util.fastAny
 import androidx.compose.ui.util.fastForEach
 import androidx.compose.ui.util.fastForEachReversed
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
-internal class SharedElement(val key: Any, val scope: SharedTransitionScopeImpl) {
+internal class SharedElement(
+    val key: Any,
+    val scope: SharedTransitionScopeImpl
+) {
     fun isAnimating(): Boolean = states.fastAny { it.boundsAnimation.isRunning } && foundMatch
-    internal var lastReportedInitialVelocity by mutableStateOf<(() -> Rect)?>(null)
+    private val offsetVelocityTracker = VelocityTracker()
+    private val sizeVelocityTracker = VelocityTracker()
+    private var velocityMultiplier = DefaultVelocityMultiplier
+    private var velocityTrackingJob: Job? = null
 
     private var _targetBounds: Rect? by mutableStateOf(null)
 
@@ -132,4 +144,37 @@ internal class SharedElement(val key: Any, val scope: SharedTransitionScopeImpl)
             scope.observeReads(scope = this, updateMatch, observingVisibilityChange)
         }
     }
+
+    fun beginVelocityTracking(coroutineScope: CoroutineScope) {
+        if (velocityTrackingJob != null) error("Attempting to begin velocity tracking when already tracking.")
+        velocityTrackingJob = coroutineScope.launch {
+            while (isActive) {
+                withFrameMillis { frameMillis ->
+                    currentBounds?.run {
+                        offsetVelocityTracker.addPosition(frameMillis, currentBounds!!.topLeft)
+                        sizeVelocityTracker.addPosition(frameMillis, currentBounds!!.size.run { Offset(width, height) })
+                    }
+                }
+            }
+        }
+    }
+
+    fun getVelocity() = Rect(
+        offset = offsetVelocityTracker.calculateVelocity().run { Offset(x, y) },
+        size = sizeVelocityTracker.calculateVelocity().run { Size(x, y) }
+    ) * velocityMultiplier
+
+    fun stopVelocityTracking() {
+        velocityTrackingJob?.cancel()
+        velocityTrackingJob = null
+        offsetVelocityTracker.resetTracking()
+        sizeVelocityTracker.resetTracking()
+    }
+
+    /**
+     * @param to When null - will set to the default value
+     */
+    fun setInitialVelocityMultiplier(to: Float?) { velocityMultiplier = to ?: DefaultVelocityMultiplier}
 }
+
+const val DefaultVelocityMultiplier = 1.3f

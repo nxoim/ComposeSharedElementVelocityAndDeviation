@@ -56,7 +56,6 @@ internal class BoundsAnimation(
                             from = currentBounds,
                             to = targetBounds,
                             animationSpec = boundsTransform.transform(currentValue!!, targetBounds),
-                            // maybe i should set initial velocity to null after consumption
                             initialVelocity = initialVelocity()
                         )
 

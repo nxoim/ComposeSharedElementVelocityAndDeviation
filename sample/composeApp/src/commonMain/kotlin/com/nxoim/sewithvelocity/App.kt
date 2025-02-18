@@ -14,11 +14,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -33,7 +31,6 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.round
 import com.nxoim.sewithvelocity.sharedElement.SharedTransitionLayout
@@ -49,8 +46,6 @@ fun App() {
             Color(Random.nextInt(0xFFFFFF), Random.nextInt(0xFFFFFF), Random.nextInt(0xFFFFFF))
         }
     }
-    var applyGestureVelocity by remember { mutableStateOf(true) }
-
     var velocityMultiplier by remember { mutableStateOf(1.3f) }
     var stiffness by remember { mutableStateOf(350f) }
     var dampingRatio by remember { mutableStateOf(0.9f) }
@@ -58,55 +53,45 @@ fun App() {
 
     // customized implementation of shared transition things
     SharedTransitionLayout {
-        Column {
-            Checkbox(
-                checked = applyGestureVelocity,
-                onCheckedChange = { applyGestureVelocity = it },
-                modifier = Modifier.statusBarsPadding()
-            )
+        LazyColumn() {
+            item {
+                AnimationSettingsContainer(
+                    velocityMultiplier = velocityMultiplier,
+                    onVelocityMultiplierChange = { velocityMultiplier = it },
+                    stiffness = stiffness,
+                    onStiffnessChange = { stiffness = it },
+                    dampingRatio = dampingRatio,
+                    onDampingRatioChange = { dampingRatio = it },
+                    visibilityThreshold = visibilityThreshold,
+                    onVisibilityThresholdChange = { visibilityThreshold = it }
+                )
+            }
 
-            LazyColumn(
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                item {
-                    AnimationSettingsContainer(
-                        velocityMultiplier = velocityMultiplier,
-                        onVelocityMultiplierChange = { velocityMultiplier = it },
-                        stiffness = stiffness,
-                        onStiffnessChange = { stiffness = it },
-                        dampingRatio = dampingRatio,
-                        onDampingRatioChange = { dampingRatio = it },
-                        visibilityThreshold = visibilityThreshold,
-                        onVisibilityThresholdChange = { visibilityThreshold = it }
-                    )
-                }
-
-                itemsIndexed(colors) { index, color ->
-                    Box(
-                        modifier = Modifier
-                            .aspectRatio(1.5f)
-                            .fillMaxSize()
-                            .padding(8.dp)
-                            .sharedElementWithCallerManagedVisibility(
-                                rememberSharedContentState(key = "box_$index"),
-                                visible = selectedIndex != index,
-                                boundsTransform = { _, _ ->
-                                    spring(
-                                        stiffness = stiffness,
-                                        dampingRatio = dampingRatio,
-                                        visibilityThreshold = Rect(
-                                            visibilityThreshold,
-                                            visibilityThreshold,
-                                            visibilityThreshold,
-                                            visibilityThreshold
-                                        )
+            itemsIndexed(colors) { index, color ->
+                Box(
+                    modifier = Modifier
+                        .aspectRatio(1.5f)
+                        .fillMaxSize()
+                        .padding(8.dp)
+                        .sharedElementWithCallerManagedVisibility(
+                            rememberSharedContentState(key = "box_$index"),
+                            visible = selectedIndex != index,
+                            boundsTransform = { _, _ ->
+                                spring(
+                                    stiffness = stiffness,
+                                    dampingRatio = dampingRatio,
+                                    visibilityThreshold = Rect(
+                                        visibilityThreshold,
+                                        visibilityThreshold,
+                                        visibilityThreshold,
+                                        visibilityThreshold
                                     )
-                                }
-                            )
-                            .background(color, RoundedCornerShape(16.dp))
-                            .clickable { selectedIndex = index }
-                    )
-                }
+                                )
+                            }
+                        )
+                        .background(color, RoundedCornerShape(16.dp))
+                        .clickable { selectedIndex = index }
+                )
             }
         }
 
@@ -126,8 +111,6 @@ fun App() {
             selectedIndex?.let { index ->
                 var offset by remember { mutableStateOf(Offset.Zero) }
                 val draggable2DState = rememberDraggable2DState { offset += it }
-                var dragging by remember { mutableStateOf(false) }
-                var velocity by remember { mutableStateOf<Velocity?>(null) }
 
                 Box(
                     modifier = Modifier
@@ -137,14 +120,7 @@ fun App() {
                         .sharedElementWithCallerManagedVisibility(
                             rememberSharedContentState(key = "box_$index"),
                             visible = true,
-                            initialVelocityProvider = if (applyGestureVelocity) {
-                                {
-                                    // doing velocity?.let { { /* lambda */ } } caused this
-                                    // not to apply for some reason
-                                    ((velocity ?: Velocity.Zero) * velocityMultiplier)
-                                        .let { Rect(it.x, it.y, it.x, it.y) }
-                                }
-                            } else null,
+                            initialVelocityMultiplierOverrider = { velocityMultiplier },
                             boundsTransform = { _, _ ->
                                 spring(
                                     stiffness = stiffness,
@@ -167,12 +143,7 @@ fun App() {
                         .fillMaxSize()
                         .draggable2D(
                             draggable2DState,
-                            onDragStarted = { dragging = true },
-                            onDragStopped = { newVelocity ->
-                                velocity = newVelocity * velocityMultiplier
-                                dragging = false
-                                selectedIndex = null
-                            }
+                            onDragStopped = { selectedIndex = null }
                         )
                 )
             }
