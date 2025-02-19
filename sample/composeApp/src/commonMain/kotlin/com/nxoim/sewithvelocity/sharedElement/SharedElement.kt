@@ -177,4 +177,4 @@ internal class SharedElement(
     fun setInitialVelocityMultiplier(to: Float?) { velocityMultiplier = to ?: DefaultVelocityMultiplier}
 }
 
-const val DefaultVelocityMultiplier = 1.3f
+private const val DefaultVelocityMultiplier = 1.3f

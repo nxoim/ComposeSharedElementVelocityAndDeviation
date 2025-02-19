@@ -16,7 +16,7 @@ internal class BoundsAnimation(
     val coroutineScope: CoroutineScope,
     val initialVelocity: (() -> Rect?),
     boundsTransform: BoundsTransform,
-    private val _target: (Unit) -> Boolean
+    private val _target: () -> Boolean
 ) {
     var animationState: DeviationAwareRectAnimatable? = null
     var boundsTransform: BoundsTransform by mutableStateOf(boundsTransform)
@@ -26,7 +26,7 @@ internal class BoundsAnimation(
     private var previousTarget = isTarget
     val isTarget: Boolean
         get() {
-            return _target(Unit)
+            return _target()
                 .also {
                     if (it != previousTarget) {
                         isAnimationPending = true

@@ -241,9 +241,7 @@ internal class SharedTransitionScopeImpl internal constructor(
             BoundsAnimation(
                 transitionScope = this@SharedTransitionScopeImpl,
                 coroutineScope = coroutineScope,
-                initialVelocity = {
-                    sharedElement.getVelocity()
-                },
+                initialVelocity = { sharedElement.getVelocity() },
                 boundsTransform = boundsTransform,
                 _target = { visibleRemembered.invoke(Unit) }
             )
